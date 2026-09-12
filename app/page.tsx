@@ -3131,6 +3131,7 @@ export default function BeforeUniversityPage() {
     useState<OnboardingDraft | null>(null);
   const [migrationBlocked, setMigrationBlocked] = useState("");
   const aiReturnFocusRef = useRef<HTMLButtonElement | null>(null);
+  const searchReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const initializedRef = useRef(false);
   const { setTheme } = useTheme();
   useEffect(() => {
@@ -3662,9 +3663,11 @@ export default function BeforeUniversityPage() {
             </span>
           </button>
           <Button
+            ref={searchReturnFocusRef}
             variant="outline"
             onClick={() => setSearchOpen(true)}
             className="h-10 rounded-xl border-[var(--separator)] bg-card/75 text-muted-foreground shadow-none sm:min-w-40 sm:justify-between"
+            aria-label="検索を開く"
           >
             <span className="flex items-center gap-2">
               <Search className="size-4" />
@@ -3809,6 +3812,7 @@ export default function BeforeUniversityPage() {
       <CommandDialog
         open={searchOpen}
         onOpenChange={setSearchOpen}
+        returnFocusRef={searchReturnFocusRef}
         title="ロードマップを検索"
         description="タスク、Goal、月を検索します"
       >
@@ -3858,7 +3862,7 @@ export default function BeforeUniversityPage() {
                 onSelect={() => openSearchResult("goal", goal.id)}
               >
                 <Target className="size-4" />
-                <span>{goal.title}</span>
+                <span className="min-w-0 flex-1 truncate">{goal.title}</span>
                 <CommandShortcut>
                   {getGoalProgress(goal, data.tasks)}%
                 </CommandShortcut>
@@ -3873,7 +3877,7 @@ export default function BeforeUniversityPage() {
                 onSelect={() => openSearchResult("month", month.id)}
               >
                 <CalendarDays className="size-4" />
-                <span>
+                <span className="min-w-0 flex-1 truncate">
                   {month.year}年{month.month}月 — {month.theme}
                 </span>
               </CommandItem>
