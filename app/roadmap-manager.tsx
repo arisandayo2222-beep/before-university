@@ -41,7 +41,15 @@ type EditorState = {
   startDate: string;
   targetDate: string;
   weeklyCapacityMinutes: string;
+  themeColor: string;
 };
+
+const THEME_COLORS = [
+  { id: "blue", label: "ブルー", color: "#007aff" },
+  { id: "teal", label: "ティール", color: "#0b7f86" },
+  { id: "indigo", label: "インディゴ", color: "#5856d6" },
+  { id: "plum", label: "プラム", color: "#8b5c91" },
+] as const;
 
 const blankEditor = (): EditorState => ({
   roadmapName: "",
@@ -50,6 +58,7 @@ const blankEditor = (): EditorState => ({
   startDate: today(),
   targetDate: "",
   weeklyCapacityMinutes: "",
+  themeColor: "blue",
 });
 
 export function RoadmapSwitcher({
@@ -84,6 +93,7 @@ export function RoadmapSwitcher({
       startDate: today(),
       targetDate: university ? "2027-04-01" : "",
       weeklyCapacityMinutes: "",
+      themeColor: "blue",
     });
     setError("");
     setView("create");
@@ -96,6 +106,7 @@ export function RoadmapSwitcher({
       startDate: current.settings.startDate,
       targetDate: current.settings.targetDate,
       weeklyCapacityMinutes: current.settings.weeklyCapacityMinutes?.toString() ?? "",
+      themeColor: current.settings.themeColor,
     });
     setError("");
     setView("edit");
@@ -123,6 +134,7 @@ export function RoadmapSwitcher({
         startDate: editor.startDate,
         targetDate: editor.targetDate,
         weeklyCapacityMinutes: capacity,
+        themeColor: editor.themeColor,
         onboardingCompleted: true,
         guideCompleted: true,
       }));
@@ -141,6 +153,7 @@ export function RoadmapSwitcher({
           targetDate: editor.targetDate,
           finalGoal: editor.eventDescription || `${editor.eventName}までに、やりたいことを実現する`,
           weeklyCapacityMinutes: capacity,
+          themeColor: editor.themeColor,
         },
       });
     }
@@ -159,9 +172,9 @@ export function RoadmapSwitcher({
           <DialogHeader><DialogTitle>{view === "list" ? "ロードマップ" : view === "create" ? "新しいロードマップ" : "イベント設定を編集"}</DialogTitle><DialogDescription>{view === "list" ? "この端末に保存されたロードマップを切り替えます。" : "名前や学校名などの個人情報は不要です。"}</DialogDescription></DialogHeader>
           {view === "list" ? <div className="space-y-3">
             {workspace.roadmaps.map((item) => <button key={item.settings.roadmapId} type="button" onClick={() => { onSwitch(item.settings.roadmapId); setOpen(false); }} className={cn("ios-press flex min-h-16 w-full items-center gap-3 rounded-2xl border p-4 text-left", item.settings.roadmapId === current.settings.roadmapId && "border-primary bg-primary/[0.05]")}><span className="min-w-0 flex-1"><span className="block truncate font-semibold">{item.settings.roadmapName}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{item.settings.eventName} · {item.settings.targetDate}</span></span>{item.settings.roadmapId === current.settings.roadmapId ? <span className="text-xs font-medium text-primary">選択中</span> : null}</button>)}
-            <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" className="h-11" onClick={() => startCreate(false)}><Plus className="size-4" />自由に新規作成</Button><Button variant="outline" className="h-11" onClick={() => startCreate(true)}><CalendarDays className="size-4" />大学入学テンプレート</Button><Button variant="ghost" className="h-11" onClick={() => { setOpen(false); onImport(); }}><FileUp className="size-4" />ファイルから追加</Button><Button variant="ghost" className="h-11" onClick={startEdit}><Pencil className="size-4" />選択中を編集</Button></div>
+            <div className="grid gap-2 sm:grid-cols-2"><Button variant="outline" className="h-11" onClick={() => startCreate(false)}><Plus className="size-4" />自由に新規作成</Button><Button variant="outline" className="h-11" onClick={() => startCreate(true)}><CalendarDays className="size-4" />大学入学テンプレート</Button><Button variant="ghost" className="h-11" onClick={() => { setOpen(false); onImport(); }}><FileUp className="size-4" />ファイルから追加</Button><Button variant="ghost" className="h-11" onClick={startEdit}><Pencil className="size-4" />選択中を編集</Button><Button variant="ghost" className="h-11 sm:col-span-2" onClick={() => downloadEventBackup(current)}><FileDown className="size-4" />選択中をバックアップ</Button></div>
             <Button variant="ghost" className="h-11 w-full text-destructive hover:text-destructive" disabled={workspace.roadmaps.length <= 1} onClick={() => { setDeleteTarget(current); setBackedUp(false); }}><Trash2 className="size-4" />選択中を削除</Button>
-          </div> : <Editor editor={editor} setEditor={setEditor} error={error} />}
+          </div> : <Editor editor={editor} setEditor={setEditor} error={error} affectedTasks={view === "edit" ? current.tasks.filter((task) => task.dueDate && task.dueDate > editor.targetDate).length : 0} />}
           <DialogFooter>{view === "list" ? <Button variant="ghost" onClick={() => setOpen(false)}>閉じる</Button> : <><Button variant="ghost" onClick={() => setView("list")}>戻る</Button><Button onClick={save}>{view === "create" ? "ロードマップを作成" : "変更を保存"}</Button></>}</DialogFooter>
         </DialogContent>
       </Dialog>
@@ -172,7 +185,7 @@ export function RoadmapSwitcher({
   );
 }
 
-function Editor({ editor, setEditor, error }: { editor: EditorState; setEditor: React.Dispatch<React.SetStateAction<EditorState>>; error: string }) {
+function Editor({ editor, setEditor, error, affectedTasks }: { editor: EditorState; setEditor: React.Dispatch<React.SetStateAction<EditorState>>; error: string; affectedTasks: number }) {
   const field = (key: keyof EditorState) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setEditor((current) => ({ ...current, [key]: event.target.value }));
-  return <div className="space-y-4"><div className="space-y-2"><Label htmlFor="event-name">イベント名 *</Label><Input id="event-name" value={editor.eventName} onChange={field("eventName")} maxLength={200} placeholder="例：文化祭、資格試験、作品公開" /></div><div className="space-y-2"><Label htmlFor="roadmap-name">ロードマップ名（任意）</Label><Input id="roadmap-name" value={editor.roadmapName} onChange={field("roadmapName")} maxLength={200} placeholder="例：文化祭まで" /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="start-date">開始日 *</Label><Input id="start-date" type="date" value={editor.startDate} onChange={field("startDate")} /></div><div className="space-y-2"><Label htmlFor="event-date">イベント日 *</Label><Input id="event-date" type="date" min={editor.startDate} value={editor.targetDate} onChange={field("targetDate")} /></div></div><div className="space-y-2"><Label htmlFor="event-description">実現したい状態（任意）</Label><Textarea id="event-description" value={editor.eventDescription} onChange={field("eventDescription")} maxLength={2000} /></div><div className="space-y-2"><Label htmlFor="weekly-capacity">1週間に使える時間（分・任意）</Label><Input id="weekly-capacity" type="number" min={0} max={10080} value={editor.weeklyCapacityMinutes} onChange={field("weeklyCapacityMinutes")} /></div>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</div>;
+  return <div className="space-y-4"><div className="space-y-2"><Label htmlFor="event-name">イベント名 *</Label><Input id="event-name" value={editor.eventName} onChange={field("eventName")} maxLength={200} placeholder="例：文化祭、資格試験、作品公開" /></div><div className="space-y-2"><Label htmlFor="roadmap-name">ロードマップ名（任意）</Label><Input id="roadmap-name" value={editor.roadmapName} onChange={field("roadmapName")} maxLength={200} placeholder="例：文化祭まで" /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="start-date">開始日 *</Label><Input id="start-date" type="date" value={editor.startDate} onChange={field("startDate")} /></div><div className="space-y-2"><Label htmlFor="event-date">イベント日 *</Label><Input id="event-date" type="date" min={editor.startDate} value={editor.targetDate} onChange={field("targetDate")} /></div></div>{affectedTasks ? <p role="status" className="rounded-xl bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2 text-xs leading-5">変更後のイベント日より後に、期限が設定されたタスクが{affectedTasks}件あります。保存前に確認できます。</p> : null}<div className="space-y-2"><Label htmlFor="event-description">実現したい状態（任意）</Label><Textarea id="event-description" value={editor.eventDescription} onChange={field("eventDescription")} maxLength={2000} /></div><div className="space-y-2"><Label htmlFor="weekly-capacity">1週間に使える時間（分・任意）</Label><Input id="weekly-capacity" type="number" min={0} max={10080} value={editor.weeklyCapacityMinutes} onChange={field("weeklyCapacityMinutes")} /></div><fieldset className="space-y-2"><legend className="text-sm font-medium">テーマカラー（任意）</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{THEME_COLORS.map((option) => <button key={option.id} type="button" aria-pressed={editor.themeColor === option.id} onClick={() => setEditor((current) => ({ ...current, themeColor: option.id }))} className={cn("ios-press flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm", editor.themeColor === option.id && "border-primary bg-primary/[0.06] ring-2 ring-primary/10")}><span className="size-3 rounded-full" style={{ backgroundColor: option.color }} aria-hidden="true" />{option.label}</button>)}</div></fieldset>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</div>;
 }

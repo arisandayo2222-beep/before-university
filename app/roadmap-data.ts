@@ -143,8 +143,6 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   low: "Low",
 };
 export const DEFAULT_TARGET_DATE = "2027-04-01";
-export const ROADMAP_START = new Date("2026-09-01T00:00:00");
-export const ROADMAP_END = new Date(`${DEFAULT_TARGET_DATE}T00:00:00`);
 
 const MONTH_LABELS = [
   ["January", "JAN"],

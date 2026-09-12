@@ -45,6 +45,17 @@ import type { RoadmapData } from "./roadmap-data";
 
 type ImportStep = "choose" | "preview" | "confirm" | "saving";
 
+const remainingLabel = (date: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const diff = Math.ceil(
+    (Date.UTC(year, month - 1, day) - Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) /
+      86_400_000,
+  );
+  if (diff < 0) return `イベント日を${Math.abs(diff)}日超過`;
+  if (diff === 0) return "イベント当日";
+  return `あと${diff}日`;
+};
+
 export function BackupImportDialog({
   open,
   onOpenChange,
@@ -191,6 +202,9 @@ export function BackupImportDialog({
                   </div>
                 </div>
               </div>
+              <ol className="grid gap-2 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
+                {["専用プロンプトをコピー", "任意のAIへ貼り付ける", "AIから1問ずつ質問を受ける", "イベント・期限・やりたいことを整理", "AIにJSONを作ってもらう", "JSONをこのサイトへ読み込む"].map((item, index) => <li key={item} className="flex gap-2 rounded-xl bg-[var(--surface-subtle)] px-3 py-2"><span className="font-semibold text-primary">{index + 1}</span><span>{item}</span></li>)}
+              </ol>
               <Label htmlFor="roadmap-ai-prompt">AIへ渡す専用プロンプト</Label>
               <Textarea ref={promptRef} id="roadmap-ai-prompt" readOnly value={aiPrompt} className="min-h-48 resize-y rounded-2xl text-xs leading-5" />
               <p className="text-xs leading-5 text-muted-foreground">
@@ -198,6 +212,9 @@ export function BackupImportDialog({
               </p>
               <Button className="h-11 w-full rounded-xl" onClick={() => void copyPrompt()}>
                 <Clipboard className="size-4" />プロンプトをコピー
+              </Button>
+              <Button variant="outline" className="h-11 w-full rounded-xl" onClick={() => { setTab("file"); window.setTimeout(() => inputRef.current?.click(), 0); }}>
+                <FileUp className="size-4" />作成したファイルを読み込む
               </Button>
             </TabsContent>
             <TabsContent value="file" className="pt-3">
@@ -230,6 +247,7 @@ export function BackupImportDialog({
               <p className="truncate text-xs text-muted-foreground">{sourceName}</p>
               <h3 className="mt-1 text-lg font-semibold">{parsed.data.settings.roadmapName}</h3>
               <p className="mt-1 text-sm">{parsed.data.settings.eventName} · {parsed.data.settings.targetDate}</p>
+              <p className="mt-1 text-xs font-medium text-primary">{remainingLabel(parsed.data.settings.targetDate)}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                 <PreviewCount label="目標" value={parsed.data.goals.length} />
                 <PreviewCount label="タスク" value={parsed.data.tasks.length} />

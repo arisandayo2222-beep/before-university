@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   MAX_BACKUP_BYTES,
   createBackup,
+  hasMatchingRecordIdentity,
   mergeRoadmaps,
   parseBackupText,
 } from "../app/local-data";
@@ -70,6 +71,19 @@ await test("legacy version 1 records migrate without duplication or reset", () =
   assert.equal(migrated.settings.theme, "dark");
   assert.equal(migrated.settings.onboardingCompleted, true);
   assert.equal(migrated.settings.guideCompleted, true);
+});
+
+await test("migration verification detects missing or replaced record IDs", () => {
+  const source = createSampleData();
+  assert.equal(hasMatchingRecordIdentity(source, structuredClone(source)), true);
+
+  const missingTask = structuredClone(source);
+  missingTask.tasks.pop();
+  assert.equal(hasMatchingRecordIdentity(source, missingTask), false);
+
+  const replacedTask = structuredClone(source);
+  replacedTask.tasks[0].id = "different-task-id";
+  assert.equal(hasMatchingRecordIdentity(source, replacedTask), false);
 });
 
 await test("event schema v2 round-trips and regenerates safe internal IDs", () => {
@@ -157,7 +171,25 @@ await test("AI planning prompt embeds the current import schema locally", () => 
   assert.match(prompt, /before-roadmap/);
   assert.match(prompt, /schemaVersion/);
   assert.match(prompt, /最初の質問を1つだけ/);
+  assert.match(prompt, /健康や運動/);
+  assert.match(prompt, /未着手タスクの進捗が0/);
   assert.doesNotMatch(prompt, /https:\/\/chatgpt\.com/);
+});
+
+await test("import UI includes local AI workflow and event countdown preview", () => {
+  const source = readFileSync("app/backup-ui.tsx", "utf8");
+  assert.match(source, /専用プロンプトをコピー/);
+  assert.match(source, /作成したファイルを読み込む/);
+  assert.match(source, /remainingLabel/);
+});
+
+await test("roadmap editor exposes theme, backup, and date-impact warning", () => {
+  const manager = readFileSync("app/roadmap-manager.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8");
+  assert.match(manager, /選択中をバックアップ/);
+  assert.match(manager, /変更後のイベント日より後に、期限が設定されたタスク/);
+  assert.match(manager, /aria-pressed/);
+  assert.match(page, /data-roadmap-theme/);
 });
 
 await test("client source has no personal-data network transports or HTML injection", () => {

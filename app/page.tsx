@@ -3581,7 +3581,7 @@ export default function BeforeUniversityPage() {
       </>
     );
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider defaultOpen data-roadmap-theme={data.settings.themeColor}>
       <Sidebar
         collapsible="icon"
         className="border-r border-sidebar-border bg-sidebar"

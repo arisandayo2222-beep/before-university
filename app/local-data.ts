@@ -24,6 +24,7 @@ const ROADMAP_STORE = "roadmap";
 const DRAFT_STORE = "drafts";
 const ROADMAP_KEY = "current";
 const ONBOARDING_DRAFT_KEY = "onboarding";
+const PRE_MIGRATION_BACKUP_KEY = "pre-migration-roadmap-v4";
 const FORBIDDEN_KEYS = new Set([
   "__proto__",
   "proto",
@@ -89,6 +90,23 @@ export function createWorkspace(data: RoadmapData): RoadmapWorkspace {
     roadmaps: [data],
     updatedAt: new Date().toISOString(),
   };
+}
+
+export function hasMatchingRecordIdentity(
+  expected: RoadmapData,
+  actual: RoadmapData,
+): boolean {
+  const sameIds = <T extends { id: string }>(left: T[], right: T[]) =>
+    left.length === right.length &&
+    left.every((item) => right.some((candidate) => candidate.id === item.id));
+  return (
+    expected.settings.roadmapId === actual.settings.roadmapId &&
+    sameIds(expected.tasks, actual.tasks) &&
+    sameIds(expected.goals, actual.goals) &&
+    sameIds(expected.months, actual.months) &&
+    sameIds(expected.memories, actual.memories) &&
+    sameIds(expected.categories, actual.categories)
+  );
 }
 
 export function isRoadmapWorkspace(value: unknown): value is RoadmapWorkspace {
@@ -273,14 +291,23 @@ export async function clearOnboardingDraft(): Promise<void> {
 }
 
 export async function loadInitialData(): Promise<InitialLoadResult> {
-  const existingWorkspace = await readWorkspace();
-  const existing = existingWorkspace
-    ? existingWorkspace.roadmaps.find(
-        (item) => item.settings.roadmapId === existingWorkspace.activeRoadmapId,
-      ) ?? existingWorkspace.roadmaps[0]
-    : null;
-  if (existing && existingWorkspace) {
-    await writeWorkspace(existingWorkspace);
+  const storedRaw = await readStore<unknown>(ROADMAP_STORE, ROADMAP_KEY);
+  if (storedRaw && isRoadmapWorkspace(storedRaw)) {
+    const existingWorkspace = await readWorkspace();
+    const existing = existingWorkspace
+      ? existingWorkspace.roadmaps.find(
+          (item) => item.settings.roadmapId === existingWorkspace.activeRoadmapId,
+        ) ?? existingWorkspace.roadmaps[0]
+      : null;
+    if (!existing || !existingWorkspace)
+      return {
+        data: null,
+        workspace: null,
+        source: "empty",
+        draft: await readOnboardingDraft(),
+        migrationWarning:
+          "端末内のロードマップを確認できませんでした。保存済みデータは変更していません。",
+      };
     localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
     return {
       data: existing,
@@ -288,6 +315,58 @@ export async function loadInitialData(): Promise<InitialLoadResult> {
       source: "indexeddb",
       draft: null,
     };
+  }
+
+  if (storedRaw) {
+    const draft = await readOnboardingDraft();
+    const migrated = migrateRoadmapData(storedRaw);
+    if (!migrated)
+      return {
+        data: null,
+        workspace: null,
+        source: "empty",
+        draft,
+        migrationWarning:
+          "以前の端末データ形式を確認できませんでした。保存済みデータは変更していません。",
+      };
+    try {
+      // Keep an untouched copy until the migrated workspace has been written and verified.
+      await writeStore(
+        DRAFT_STORE,
+        PRE_MIGRATION_BACKUP_KEY,
+        structuredClone(storedRaw),
+      );
+      const migratedWorkspace = createWorkspace(migrated);
+      await writeWorkspace(migratedWorkspace);
+      const verifiedWorkspace = await readWorkspace();
+      const verified = verifiedWorkspace?.roadmaps.find(
+        (item) => item.settings.roadmapId === migrated.settings.roadmapId,
+      );
+      if (!verified || !hasMatchingRecordIdentity(migrated, verified))
+        throw new Error("移行後の照合に失敗しました");
+      localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+      return {
+        data: verified,
+        workspace: verifiedWorkspace,
+        source: "migrated",
+        draft: null,
+      };
+    } catch {
+      // Restore the original record when possible. The separate snapshot remains as a fallback.
+      try {
+        await writeStore(ROADMAP_STORE, ROADMAP_KEY, storedRaw);
+      } catch {
+        // The migration snapshot is intentionally retained in DRAFT_STORE.
+      }
+      return {
+        data: null,
+        workspace: null,
+        source: "empty",
+        draft,
+        migrationWarning:
+          "以前の端末データを安全に移行できませんでした。元データと移行前コピーを保持しています。",
+      };
+    }
   }
 
   const draft = await readOnboardingDraft();
@@ -316,7 +395,8 @@ export async function loadInitialData(): Promise<InitialLoadResult> {
     await writeWorkspace(migratedWorkspace);
     const verifiedWorkspace = await readWorkspace();
     const verified = verifiedWorkspace?.roadmaps[0] ?? null;
-    if (!verified) throw new Error("移行後の確認に失敗しました");
+    if (!verified || !hasMatchingRecordIdentity(migrated, verified))
+      throw new Error("移行後の件数またはIDの照合に失敗しました");
     localStorage.removeItem(LEGACY_STORAGE_KEY);
     localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
     return {
