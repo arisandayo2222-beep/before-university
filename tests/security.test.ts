@@ -218,6 +218,22 @@ await test("shared dialog is a viewport-safe mobile bottom sheet", () => {
   assert.match(source, /sm:left-\[50%\][\s\S]*sm:translate-x-\[-50%\]/);
 });
 
+await test("mobile search keeps one bounded field and a scrollable result area", () => {
+  const command = readFileSync("components/ui/command.tsx", "utf8");
+  const styles = readFileSync("app/globals.css", "utf8");
+  assert.match(command, /command-search-field flex min-h-12 w-full min-w-0/);
+  assert.match(command, /command-search-input h-12 min-w-0 flex-1/);
+  assert.match(command, /aria-label="検索語をクリア"/);
+  assert.match(command, /aria-label="検索を閉じる"/);
+  assert.match(command, /onOpenAutoFocus=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(command, /onCloseAutoFocus[\s\S]*returnFocusRef\.current\.focus/);
+  assert.match(command, /window\.visualViewport/);
+  assert.match(command, /min-h-0 flex-1 scroll-py-1 overflow-x-hidden overflow-y-auto/);
+  assert.match(styles, /\.command-search-field:focus-within/);
+  assert.match(styles, /\.command-search-input:focus-visible[\s\S]*outline: none/);
+  assert.match(styles, /\.command-dialog::before[\s\S]*display: none/);
+});
+
 await test("valid backup round-trips", () => {
   const parsed = parseBackupText(asText(createBackup(validData)));
   assert.equal(parsed.data.tasks.length, validData.tasks.length);
