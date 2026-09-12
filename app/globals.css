@@ -432,6 +432,18 @@ html {
     background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
   }
 
+  [data-slot="dialog-content"].command-dialog {
+    bottom: var(--command-dialog-keyboard-offset, 0px);
+    max-height: min(
+      92dvh,
+      var(--command-dialog-viewport-height, 92dvh)
+    );
+  }
+
+  [data-slot="dialog-content"].command-dialog::before {
+    display: none;
+  }
+
   .app-toolbar {
     height: calc(4rem + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
@@ -453,6 +465,29 @@ select {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+.command-search-field {
+  box-sizing: border-box;
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+
+.command-search-field:focus-within {
+  border-color: var(--ring);
+  background: var(--background);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
+}
+
+.command-search-input:focus,
+.command-search-input:focus-visible {
+  outline: none;
+}
+
+.command-search-action:focus-visible {
+  outline-offset: -3px;
 }
 
 .category-programming {
